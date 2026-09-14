@@ -23,6 +23,7 @@ import {
   AlignCenterHIcon,
   CaptionIcon,
   ChaptersIcon,
+  VolumeCheckIcon,
   ChevronDownIcon,
   ChevronUpIcon,
   CloseIcon,
@@ -48,6 +49,7 @@ import { ClipBulkImport } from './ClipBulkImport';
 import { LayerTimelinePanel } from './LayerTimelinePanel';
 import { MediaLibraryPanel } from './MediaLibraryPanel';
 import { NotifySettingsModal } from './NotifySettingsModal';
+import { VolumeCheckModal } from './VolumeCheckModal';
 import { PreviewPanel } from './PreviewPanel';
 import { SceneTimelineStrip } from './SceneTimelineStrip';
 import { YoutubeChaptersModal } from './YoutubeChaptersModal';
@@ -101,6 +103,7 @@ export function MobileEditorView() {
   const [isArrangeOpen, setArrangeOpen] = useState(false);
   const [isMediaOpen, setMediaOpen] = useState(false);
   const [isNotifySettingsOpen, setNotifySettingsOpen] = useState(false);
+  const [isVolumeCheckOpen, setVolumeCheckOpen] = useState(false);
   const [isChaptersOpen, setChaptersOpen] = useState(false);
   const [croppingImageLayerId, setCroppingImageLayerId] = useState<string | null>(null);
   const [multiSelectMode, setMultiSelectMode] = useState(false);
@@ -273,6 +276,14 @@ export function MobileEditorView() {
           >
             <MailIcon size={18} />
           </button>
+          <button
+            className="mobile-icon-btn"
+            onClick={() => setVolumeCheckOpen(true)}
+            aria-label="音量チェック"
+            title="クリップ間の音量差をチェック"
+          >
+            <VolumeCheckIcon size={18} />
+          </button>
           <select
             className="mobile-editor__quality-select"
             value={exportQuality}
@@ -441,6 +452,16 @@ export function MobileEditorView() {
 
       {isMediaOpen && <MediaLibraryPanel project={project} scene={currentScene} onClose={() => setMediaOpen(false)} />}
       {isNotifySettingsOpen && <NotifySettingsModal onClose={() => setNotifySettingsOpen(false)} />}
+      {isVolumeCheckOpen && (
+        <VolumeCheckModal
+          project={project}
+          onClose={() => setVolumeCheckOpen(false)}
+          onSelectScene={(sceneId) => {
+            engine.seek(getSceneStartMs(project, sceneId));
+            setVolumeCheckOpen(false);
+          }}
+        />
+      )}
       {isChaptersOpen && <YoutubeChaptersModal project={project} onClose={() => setChaptersOpen(false)} />}
 
       {isArrangeOpen && (

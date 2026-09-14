@@ -151,6 +151,12 @@ export interface MediaAsset {
    * プレビュー再生や書き出し結果でこの動画の映像だけ表示されない(音声は残る)ことがある。
    */
   codecMaybeUnsupported?: boolean;
+  /**
+   * 音声の大まかな音量(RMSベースのdBFS、0に近いほど大きい音)。取り込み時に
+   * audioLoudness.tsで解析した値で、クリップ間の音量差を検知する機能
+   * (domain/audioLoudnessCheck.ts)に使う。音声が無い/解析に失敗した場合は未設定。
+   */
+  audioLoudnessDb?: number;
 }
 
 export interface Project {

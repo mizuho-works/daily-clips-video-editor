@@ -1085,6 +1085,64 @@ button.editor__menubar-item[aria-expanded='true'] {
   flex-wrap: wrap;
 }
 
+.volume-check__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.volume-check__item {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.volume-check__select {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-app);
+  color: var(--text-h);
+  font-size: 12px;
+  text-align: left;
+}
+
+.volume-check__item.is-flagged .volume-check__select {
+  border-color: #d9822b;
+  background: color-mix(in srgb, #d9822b 10%, var(--bg-app));
+}
+
+.volume-check__item.is-flagged .volume-check__select svg {
+  color: #d9822b;
+  flex-shrink: 0;
+}
+
+.volume-check__scene-label {
+  flex-shrink: 0;
+  font-weight: 700;
+}
+
+.volume-check__media-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.volume-check__deviation {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
 .notify-settings {
   display: flex;
   flex-direction: column;
@@ -1981,6 +2039,25 @@ button.editor__menubar-item[aria-expanded='true'] {
   border-radius: 50%;
   background: var(--accent);
   color: var(--accent-contrast);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* 他のクリップと比べて音量が極端に大きい/小さいシーン(audioLoudnessCheck.ts参照)。
+   選択チェックマーク(右上)と重ならないよう反対の左下に置く。 */
+.scene-timeline__chip.is-loudness-flagged::before {
+  content: '!';
+  position: absolute;
+  bottom: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #d9822b;
+  color: #ffffff;
   font-size: 11px;
   font-weight: 700;
   line-height: 16px;

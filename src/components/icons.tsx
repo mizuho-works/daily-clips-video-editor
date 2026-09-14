@@ -27,6 +27,7 @@ import {
   Expand,
   Focus,
   FolderOpen,
+  Gauge,
   Grid3x3,
   Group,
   ListVideo,
@@ -51,6 +52,7 @@ import {
   Slash,
   Square,
   Trash2,
+  TriangleAlert,
   Type,
   Underline,
   Undo2,
@@ -133,3 +135,5 @@ export const MosaicIcon = icon(Grid3x3);
 export const ChaptersIcon = icon(ListVideo);
 export const BugIcon = icon(Bug);
 export const MailIcon = icon(Mail);
+export const VolumeCheckIcon = icon(Gauge);
+export const WarningIcon = icon(TriangleAlert);

@@ -5,6 +5,7 @@ import type { MediaAsset } from '../domain/types';
 import { readMp4CreationTime } from '../domain/videoMetadata';
 import { runExclusiveVideoDecode } from '../utils/videoDecodeQueue';
 import { convertToH264 } from '../utils/hevcConvert';
+import { measureAudioLoudnessDb } from '../utils/audioLoudness';
 
 const mediaUrlCache = new Map<string, string>();
 const thumbnailUrlCache = new Map<string, string>();
@@ -286,6 +287,7 @@ export async function addMediaBlob(
   let thumbnailBlobId: string | undefined;
   let shotDatetime: string | undefined;
   let shotDateSource: 'metadata' | 'mtime' | undefined;
+  let audioLoudnessDb: number | undefined;
 
   if (kind === 'video') {
     // メタデータ取得・サムネイル生成は端末/形式によって失敗・タイムアウトすることがあるが、
@@ -320,6 +322,15 @@ export async function addMediaBlob(
       shotDatetime = new Date(mtimeMs).toISOString();
       shotDateSource = 'mtime';
     }
+
+    // クリップ間の音量差(「動画によって極端に大きい/小さい」)を後で検知できるよう、
+    // 取り込み時に大まかな音量(dBFS)を解析しておく(domain/audioLoudnessCheck.ts参照)。
+    // 音声解析に失敗しても動画自体の取り込みは続ける。
+    try {
+      audioLoudnessDb = await withTimeout(measureAudioLoudnessDb(blob), METADATA_TIMEOUT_MS, '音量解析がタイムアウトしました');
+    } catch (err) {
+      console.error('音量(ラウドネス)の解析に失敗しました(動画自体は取り込みを続けます):', err);
+    }
   } else if (kind === 'image') {
     const meta = await readImageMetadata(url);
     width = meta.width;
@@ -343,6 +354,7 @@ export async function addMediaBlob(
     shotDatetime,
     shotDateSource,
     codecMaybeUnsupported,
+    audioLoudnessDb,
   };
 }
 

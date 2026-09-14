@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type DragEvent as ReactDragEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { analyzeSceneLoudness } from '../domain/audioLoudnessCheck';
 import {
   getSceneStartMs,
   resolvePosition,
@@ -67,6 +68,13 @@ export function SceneTimelineStrip({
   onChipClick,
 }: Props) {
   const reorderScenes = useProjectStore((s) => s.reorderScenes);
+  // 他のクリップと比べて音量が極端に大きい/小さいシーンをチップに小さく表示する
+  // (詳細と手動での調整は音量チェックのモーダル(VolumeCheckModal)で行う)。
+  const loudnessFlaggedSceneIds = new Set(
+    analyzeSceneLoudness(project)
+      .filter((r) => r.flagged)
+      .map((r) => r.sceneId),
+  );
   const [sceneThumbUrls, setSceneThumbUrls] = useState<Record<string, string>>({});
   const scenesScrollRef = useRef<HTMLDivElement>(null);
   const inlinePlayheadRef = useRef<HTMLDivElement>(null);
@@ -395,7 +403,7 @@ export function SceneTimelineStrip({
           {project.scenes.map((scene, i) => (
             <button
               key={scene.id}
-              className={`scene-timeline__chip${scene.id === currentSceneId ? ' is-active' : ''}${selectedSceneIds.includes(scene.id) ? ' is-selected' : ''}${sceneThumbUrls[scene.id] ? ' has-thumb' : ''}${dragOverIndex === i ? ' is-drag-over' : ''}`}
+              className={`scene-timeline__chip${scene.id === currentSceneId ? ' is-active' : ''}${selectedSceneIds.includes(scene.id) ? ' is-selected' : ''}${loudnessFlaggedSceneIds.has(scene.id) ? ' is-loudness-flagged' : ''}${sceneThumbUrls[scene.id] ? ' has-thumb' : ''}${dragOverIndex === i ? ' is-drag-over' : ''}`}
               style={{
                 width: sceneChipWidthPx(scene.duration, zoom),
                 ...(sceneThumbUrls[scene.id] ? { backgroundImage: `url(${sceneThumbUrls[scene.id]})` } : undefined),
@@ -413,7 +421,11 @@ export function SceneTimelineStrip({
               onDragOver={handleChipDragOver(i)}
               onDrop={handleChipDrop(i)}
               onDragEnd={handleChipDragEnd}
-              title={!autoCenter ? `シーン${i + 1}(ドラッグで並び替え、Ctrl/Shift+クリックで複数選択)` : 'Ctrl/Shift+クリックで複数選択'}
+              title={
+                (!autoCenter
+                  ? `シーン${i + 1}(ドラッグで並び替え、Ctrl/Shift+クリックで複数選択)`
+                  : 'Ctrl/Shift+クリックで複数選択') + (loudnessFlaggedSceneIds.has(scene.id) ? ' / 他のクリップと比べて音量が極端に違います' : '')
+              }
             >
               {i + 1}
             </button>

@@ -15,11 +15,12 @@ import { ClipBulkImport } from './ClipBulkImport';
 import { ContextToolbar } from './ContextToolbar';
 import { EditorToolbar } from './EditorToolbar';
 import { ImageCropModal } from './ImageCropModal';
-import { BackIcon, CaptionIcon, ChaptersIcon, CloseIcon, FolderOpenIcon, ImageIcon, MailIcon, TextIcon } from './icons';
+import { BackIcon, CaptionIcon, ChaptersIcon, CloseIcon, FolderOpenIcon, ImageIcon, MailIcon, TextIcon, VolumeCheckIcon } from './icons';
 import { Inspector } from './Inspector';
 import { MediaLibraryPanel } from './MediaLibraryPanel';
 import { MenubarMenu } from './MenubarMenu';
 import { NotifySettingsModal } from './NotifySettingsModal';
+import { VolumeCheckModal } from './VolumeCheckModal';
 import { PreviewPanel } from './PreviewPanel';
 import { StoryboardPanel } from './StoryboardPanel';
 import { YoutubeChaptersModal } from './YoutubeChaptersModal';
@@ -44,6 +45,7 @@ export function EditorView() {
   const [isMediaOpen, setMediaOpen] = useState(false);
   const [isChaptersOpen, setChaptersOpen] = useState(false);
   const [isNotifySettingsOpen, setNotifySettingsOpen] = useState(false);
+  const [isVolumeCheckOpen, setVolumeCheckOpen] = useState(false);
   const [croppingImageLayerId, setCroppingImageLayerId] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -297,7 +299,10 @@ export function EditorView() {
         <ArrangeMenu project={project} scene={currentScene} layers={selectedLayers} />
         <MenubarMenu
           label="ツール"
-          items={[{ label: 'メール通知設定', icon: MailIcon, onClick: () => setNotifySettingsOpen(true) }]}
+          items={[
+            { label: 'メール通知設定', icon: MailIcon, onClick: () => setNotifySettingsOpen(true) },
+            { label: '音量チェック', icon: VolumeCheckIcon, onClick: () => setVolumeCheckOpen(true) },
+          ]}
         />
         <span className="editor__menubar-item" aria-hidden="true">
           ヘルプ
@@ -351,6 +356,16 @@ export function EditorView() {
       {isMediaOpen && <MediaLibraryPanel project={project} scene={currentScene} onClose={() => setMediaOpen(false)} />}
       {isChaptersOpen && <YoutubeChaptersModal project={project} onClose={() => setChaptersOpen(false)} />}
       {isNotifySettingsOpen && <NotifySettingsModal onClose={() => setNotifySettingsOpen(false)} />}
+      {isVolumeCheckOpen && (
+        <VolumeCheckModal
+          project={project}
+          onClose={() => setVolumeCheckOpen(false)}
+          onSelectScene={(sceneId) => {
+            engine.seek(getSceneStartMs(project, sceneId));
+            setVolumeCheckOpen(false);
+          }}
+        />
+      )}
       {croppingLayer && (
         <ImageCropModal
           layer={croppingLayer}
