@@ -129,7 +129,7 @@ export function NotifySettingsModal({ onClose }: Props) {
             公開範囲は常に非公開で、変更はできません。<br />
             事前準備(Googleアカウントでの作業): ①Google Cloud Consoleでプロジェクトを作成し「YouTube Data API v3」を有効化
             ②OAuth同意画面を設定(テストユーザーに自分のアカウントを追加) ③認証情報から「OAuthクライアントID(ウェブアプリケーション)」を作成し、
-            「承認済みのJavaScript生成元」に <code>https://amanosaaan.github.io</code> を追加 ④発行されたクライアントIDを上の欄に貼り付け。
+            「承認済みのJavaScript生成元」に <code>https://mizuho-works.github.io</code>(このアプリのURLの https://〜.github.io 部分)を追加 ④発行されたクライアントIDを上の欄に貼り付け。
             クライアントIDはこのブラウザにのみ保存されます(ログイン情報は保存せず、書き出しのたびにGoogleのログイン/許可の画面が出ます)。
             なお、YouTubeのAPIには1日あたりの利用上限があり、動画のアップロードは1日に数本までです。
           </p>
