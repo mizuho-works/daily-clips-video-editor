@@ -10,7 +10,16 @@ import {
 import { getSceneStartMs } from '../domain/timeline';
 import type { ImageLayer, VideoLayer } from '../domain/types';
 import { exportProjectToMp4, type ExportQuality } from '../export/exportPipeline';
+import { generateYoutubeChapters } from '../domain/youtubeChapters';
 import { sendCompletionEmail } from '../utils/emailNotify';
+import {
+  getYoutubeSettings,
+  preloadGoogleIdentity,
+  requestYoutubeAccessToken,
+  uploadExportedVideo,
+  type TokenResult,
+  type YoutubeUploadStatus,
+} from '../utils/youtubeUpload';
 import { shareOrDownloadVideo } from '../utils/exportShare';
 import { useProjectPlaybackEngine } from '../rendering/useProjectPlaybackEngine';
 import { useSceneSelection } from '../hooks/useSceneSelection';
@@ -103,6 +112,15 @@ export function MobileEditorView() {
   const [isArrangeOpen, setArrangeOpen] = useState(false);
   const [isMediaOpen, setMediaOpen] = useState(false);
   const [isNotifySettingsOpen, setNotifySettingsOpen] = useState(false);
+  // オンにすると、書き出し後にそのままYouTubeへ非公開でアップロードする(書き出しごとに選べる)。
+  const [uploadToYoutubeOnExport, setUploadToYoutubeOnExport] = useState(false);
+  const [youtubeStatus, setYoutubeStatus] = useState<YoutubeUploadStatus | null>(null);
+
+  // YouTubeログインのポップアップはクリックの呼び出しスタック内で開く必要があるため、
+  // 認証用スクリプトを先に読み込んでおく(youtubeUpload.tsのpreloadGoogleIdentity参照)。
+  useEffect(() => {
+    if (getYoutubeSettings().clientId) void preloadGoogleIdentity().catch(() => {});
+  }, []);
   const [isVolumeCheckOpen, setVolumeCheckOpen] = useState(false);
   const [isChaptersOpen, setChaptersOpen] = useState(false);
   const [croppingImageLayerId, setCroppingImageLayerId] = useState<string | null>(null);
@@ -149,6 +167,21 @@ export function MobileEditorView() {
 
   async function handleExport() {
     if (!project) return;
+    // YouTubeへのアップロードがオンの場合、ログイン(許可)のポップアップは
+    // このタップの呼び出しスタック内で、最初のawaitより前に開く(EditorView.tsxと同じ)。
+    let tokenPromise: Promise<TokenResult> | null = null;
+    if (uploadToYoutubeOnExport) {
+      const { clientId } = getYoutubeSettings();
+      if (!clientId) {
+        window.alert('YouTubeへアップロードするには、先にヘッダーのメールアイコンの設定画面でGoogleのクライアントIDを設定してください。');
+        setNotifySettingsOpen(true);
+        return;
+      }
+      tokenPromise = requestYoutubeAccessToken(clientId);
+      setYoutubeStatus({ text: 'YouTubeのログイン/許可を待っています…(書き出しは並行して進みます)' });
+    } else {
+      setYoutubeStatus(null);
+    }
     setExporting(true);
     setExportProgress(0);
     setExportedVideo(null);
@@ -168,9 +201,19 @@ export function MobileEditorView() {
       // ユーザー操作)にshareOrDownloadVideoを呼ぶよう変更した。
       const filenameSuffix = exportSelectedOnly ? (scenesToExport.length > 1 ? `_選択クリップ${scenesToExport.length}本` : '_選択クリップ') : '';
       setExportedVideo({ blob, filename: `${project.name || 'video'}${filenameSuffix}.mp4` });
+      const youtubeUrl = tokenPromise
+        ? await uploadExportedVideo({
+            tokenPromise,
+            blob,
+            title: project.name || 'デイリークリップス',
+            description: generateYoutubeChapters(exportTarget),
+            onStatus: setYoutubeStatus,
+          })
+        : null;
       const notifyErr = await sendCompletionEmail(
         '【デイリークリップス】書き出しが完了しました',
-        `「${project.name || '新しいプロジェクト'}」の書き出しが完了しました。アプリの画面に戻って保存してください。`,
+        `「${project.name || '新しいプロジェクト'}」の書き出しが完了しました。` +
+          (youtubeUrl ? `YouTubeへ非公開でアップロードしました: ${youtubeUrl}` : 'アプリの画面に戻って保存してください。'),
       );
       if (notifyErr) console.error('完了通知メールの送信に失敗しました(書き出し自体は成功しています):', notifyErr);
     } catch (err) {
@@ -247,6 +290,20 @@ export function MobileEditorView() {
         <span className="mobile-editor__app-name">デイリークリップス</span>
         <div className="mobile-editor__top-right">
           <button
+            className={`mobile-icon-btn${uploadToYoutubeOnExport ? ' is-active' : ''}`}
+            onClick={() => setUploadToYoutubeOnExport((v) => !v)}
+            disabled={exporting || !!exportedVideo}
+            aria-label="書き出し後にYouTubeへ非公開でアップロード"
+            aria-pressed={uploadToYoutubeOnExport}
+            title={
+              uploadToYoutubeOnExport
+                ? '書き出し後、YouTubeへ非公開でアップロードします(タップで解除)'
+                : 'オンにすると、書き出し後そのままYouTubeへ非公開でアップロードします'
+            }
+          >
+            <UploadIcon size={18} />
+          </button>
+          <button
             className={`mobile-icon-btn${exportSelectedOnly ? ' is-active' : ''}`}
             onClick={() => setExportSelectedOnly((v) => !v)}
             disabled={exporting || !!exportedVideo}
@@ -271,8 +328,8 @@ export function MobileEditorView() {
           <button
             className="mobile-icon-btn"
             onClick={() => setNotifySettingsOpen(true)}
-            aria-label="メール通知設定"
-            title="メール通知設定"
+            aria-label="通知・YouTube設定"
+            title="通知・YouTube設定(メール/YouTubeアップロード)"
           >
             <MailIcon size={18} />
           </button>
@@ -316,6 +373,19 @@ export function MobileEditorView() {
           )}
         </div>
       </header>
+      {youtubeStatus && (
+        <div className={`youtube-status${youtubeStatus.isError ? ' is-error' : ''}`}>
+          <span>{youtubeStatus.text}</span>
+          {youtubeStatus.url && (
+            <a href={youtubeStatus.url} target="_blank" rel="noopener noreferrer">
+              YouTube Studioで開く
+            </a>
+          )}
+          <button className="mobile-icon-btn" onClick={() => setYoutubeStatus(null)} aria-label="閉じる">
+            <CloseIcon size={14} />
+          </button>
+        </div>
+      )}
 
       <div className="mobile-editor__preview" ref={previewRef}>
         <PreviewPanel

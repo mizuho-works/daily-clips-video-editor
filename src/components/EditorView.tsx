@@ -3,7 +3,16 @@ import { createCaptionLayer, createImageLayerForScene, createTextLayer, cropPatc
 import { getSceneStartMs } from '../domain/timeline';
 import type { ImageLayer, VideoLayer } from '../domain/types';
 import { exportProjectToMp4, type ExportQuality } from '../export/exportPipeline';
+import { generateYoutubeChapters } from '../domain/youtubeChapters';
 import { sendCompletionEmail } from '../utils/emailNotify';
+import {
+  getYoutubeSettings,
+  preloadGoogleIdentity,
+  requestYoutubeAccessToken,
+  uploadExportedVideo,
+  type TokenResult,
+  type YoutubeUploadStatus,
+} from '../utils/youtubeUpload';
 import { shareOrDownloadVideo } from '../utils/exportShare';
 import { useProjectPlaybackEngine } from '../rendering/useProjectPlaybackEngine';
 import { useSceneSelection } from '../hooks/useSceneSelection';
@@ -45,6 +54,13 @@ export function EditorView() {
   const [isMediaOpen, setMediaOpen] = useState(false);
   const [isChaptersOpen, setChaptersOpen] = useState(false);
   const [isNotifySettingsOpen, setNotifySettingsOpen] = useState(false);
+  const [youtubeStatus, setYoutubeStatus] = useState<YoutubeUploadStatus | null>(null);
+
+  // YouTubeログインのポップアップはクリックの呼び出しスタック内で開く必要があるため、
+  // 認証用スクリプトを先に読み込んでおく(youtubeUpload.tsのpreloadGoogleIdentity参照)。
+  useEffect(() => {
+    if (getYoutubeSettings().clientId) void preloadGoogleIdentity().catch(() => {});
+  }, []);
   const [isVolumeCheckOpen, setVolumeCheckOpen] = useState(false);
   const [croppingImageLayerId, setCroppingImageLayerId] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -116,8 +132,25 @@ export function EditorView() {
     }
   }
 
-  async function handleExport() {
+  async function handleExport(uploadToYoutube = false) {
     if (!project) return;
+    // 「書き出し+YouTubeへ非公開アップ」の場合、ログイン(許可)のポップアップは
+    // ユーザー操作(このクリック)の呼び出しスタック内で、最初のawaitより前に開く
+    // (でないとポップアップブロッカーに止められる)。ログイン操作は書き出しと並行して
+    // 進められ、結果は書き出し完了後に受け取る。
+    let tokenPromise: Promise<TokenResult> | null = null;
+    if (uploadToYoutube) {
+      const { clientId } = getYoutubeSettings();
+      if (!clientId) {
+        window.alert('YouTubeへアップロードするには、先に「ツール」→「通知・YouTube設定」でGoogleのクライアントIDを設定してください。');
+        setNotifySettingsOpen(true);
+        return;
+      }
+      tokenPromise = requestYoutubeAccessToken(clientId);
+      setYoutubeStatus({ text: 'YouTubeのログイン/許可を待っています…(書き出しは並行して進みます)' });
+    } else {
+      setYoutubeStatus(null);
+    }
     setExporting(true);
     setExportProgress(0);
     setExportedVideo(null);
@@ -140,9 +173,21 @@ export function EditorView() {
       // ユーザー操作)にshareOrDownloadVideoを呼ぶよう変更した(MobileEditorView.tsxと同じ)。
       const filenameSuffix = exportSelectedOnly ? (scenesToExport.length > 1 ? `_選択クリップ${scenesToExport.length}本` : '_選択クリップ') : '';
       setExportedVideo({ blob, filename: `${project.name || 'video'}${filenameSuffix}.mp4` });
+      // YouTubeの概要欄には、書き出した内容(選択クリップだけの場合はそのクリップ分)の
+      // チャプターテキストをそのまま入れる。
+      const youtubeUrl = tokenPromise
+        ? await uploadExportedVideo({
+            tokenPromise,
+            blob,
+            title: project.name || 'デイリークリップス',
+            description: generateYoutubeChapters(exportTarget),
+            onStatus: setYoutubeStatus,
+          })
+        : null;
       const notifyErr = await sendCompletionEmail(
         '【デイリークリップス】書き出しが完了しました',
-        `「${project.name || '新しいプロジェクト'}」の書き出しが完了しました。アプリの画面に戻って保存してください。`,
+        `「${project.name || '新しいプロジェクト'}」の書き出しが完了しました。` +
+          (youtubeUrl ? `YouTubeへ非公開でアップロードしました: ${youtubeUrl}` : 'アプリの画面に戻って保存してください。'),
       );
       if (notifyErr) console.error('完了通知メールの送信に失敗しました(書き出し自体は成功しています):', notifyErr);
     } catch (err) {
@@ -265,11 +310,34 @@ export function EditorView() {
             </button>
           </>
         ) : (
-          <button className="btn-pill btn-pill--primary" onClick={() => void handleExport()} disabled={exporting}>
-            {exporting ? `書き出し中… ${Math.round(exportProgress * 100)}%` : 'MP4で書き出し'}
-          </button>
+          <>
+            <button
+              className="btn-pill"
+              onClick={() => void handleExport(true)}
+              disabled={exporting}
+              title="書き出し後、そのままYouTubeへ非公開でアップロードします(概要欄にチャプターを入れます)"
+            >
+              書き出し+YouTubeへ(非公開)
+            </button>
+            <button className="btn-pill btn-pill--primary" onClick={() => void handleExport(false)} disabled={exporting}>
+              {exporting ? `書き出し中… ${Math.round(exportProgress * 100)}%` : 'MP4で書き出し'}
+            </button>
+          </>
         )}
       </header>
+      {youtubeStatus && (
+        <div className={`youtube-status${youtubeStatus.isError ? ' is-error' : ''}`}>
+          <span>{youtubeStatus.text}</span>
+          {youtubeStatus.url && (
+            <a href={youtubeStatus.url} target="_blank" rel="noopener noreferrer">
+              YouTube Studioで開く
+            </a>
+          )}
+          <button className="btn-icon" onClick={() => setYoutubeStatus(null)} aria-label="閉じる">
+            <CloseIcon size={14} />
+          </button>
+        </div>
+      )}
       <nav className="editor__menubar">
         <MenubarMenu label="ファイル" items={[{ label: '開く', icon: FolderOpenIcon, onClick: () => setMediaOpen(true) }]} />
         <span className="editor__menubar-item" aria-hidden="true">
@@ -300,7 +368,7 @@ export function EditorView() {
         <MenubarMenu
           label="ツール"
           items={[
-            { label: 'メール通知設定', icon: MailIcon, onClick: () => setNotifySettingsOpen(true) },
+            { label: '通知・YouTube設定', icon: MailIcon, onClick: () => setNotifySettingsOpen(true) },
             { label: '音量チェック', icon: VolumeCheckIcon, onClick: () => setVolumeCheckOpen(true) },
           ]}
         />

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { getNotifySettings, saveNotifySettings, sendCompletionEmail, type NotifySettings } from '../utils/emailNotify';
+import { getYoutubeSettings, preloadGoogleIdentity, saveYoutubeSettings } from '../utils/youtubeUpload';
 import { CloseIcon } from './icons';
 
 interface Props {
@@ -14,6 +15,7 @@ export function NotifySettingsModal({ onClose }: Props) {
   const [settings, setSettings] = useState<NotifySettings>(() => getNotifySettings());
   const [testState, setTestState] = useState<'idle' | 'sending' | 'ok' | 'error'>('idle');
   const [testError, setTestError] = useState('');
+  const [youtubeClientId, setYoutubeClientId] = useState(() => getYoutubeSettings().clientId);
 
   function update(patch: Partial<NotifySettings>) {
     const next = { ...settings, ...patch };
@@ -47,7 +49,7 @@ export function NotifySettingsModal({ onClose }: Props) {
     <div className="media-flyout__backdrop" onClick={onClose}>
       <div className="media-flyout" onClick={(e) => e.stopPropagation()}>
         <div className="media-flyout__header">
-          <h2>メール通知設定</h2>
+          <h2>通知・YouTube設定</h2>
           <button className="btn-icon" onClick={onClose} aria-label="閉じる">
             <CloseIcon />
           </button>
@@ -105,6 +107,32 @@ export function NotifySettingsModal({ onClose }: Props) {
             {testState === 'ok' && <span className="notify-settings__status notify-settings__status--ok">送信できました</span>}
             {testState === 'error' && <span className="notify-settings__status notify-settings__status--error">送信失敗: {testError}</span>}
           </div>
+
+          <h3 className="notify-settings__section-title">YouTubeへの自動アップロード</h3>
+          <label className="notify-settings__field">
+            GoogleのOAuthクライアントID
+            <input
+              type="text"
+              placeholder="xxxxxxxx.apps.googleusercontent.com"
+              value={youtubeClientId}
+              onChange={(e) => {
+                const clientId = e.target.value.trim();
+                setYoutubeClientId(clientId);
+                saveYoutubeSettings({ clientId });
+                if (clientId) void preloadGoogleIdentity().catch(() => {});
+              }}
+            />
+          </label>
+          <p className="notify-settings__hint">
+            設定すると、画面上部の<strong>「書き出し+YouTubeへ(非公開)」</strong>(スマホは↑アイコンのトグル)で、書き出し後にそのまま
+            YouTubeへ<strong>非公開</strong>でアップロードされ、概要欄にYouTubeチャプターのテキストが入ります(普通の「MP4で書き出し」は今まで通りアップロードしません)。
+            公開範囲は常に非公開で、変更はできません。<br />
+            事前準備(Googleアカウントでの作業): ①Google Cloud Consoleでプロジェクトを作成し「YouTube Data API v3」を有効化
+            ②OAuth同意画面を設定(テストユーザーに自分のアカウントを追加) ③認証情報から「OAuthクライアントID(ウェブアプリケーション)」を作成し、
+            「承認済みのJavaScript生成元」に <code>https://amanosaaan.github.io</code> を追加 ④発行されたクライアントIDを上の欄に貼り付け。
+            クライアントIDはこのブラウザにのみ保存されます(ログイン情報は保存せず、書き出しのたびにGoogleのログイン/許可の画面が出ます)。
+            なお、YouTubeのAPIには1日あたりの利用上限があり、動画のアップロードは1日に数本までです。
+          </p>
 
           <p className="notify-settings__hint">
             この機能を使うには、まず<strong>EmailJS(emailjs.com)</strong>に無料登録し、メール送信サービス(Gmail等)と
