@@ -193,3 +193,21 @@ describe('reorientVideoPatch', () => {
     expect(patch.width).toBeCloseTo(patch.height!, 0);
   });
 });
+
+describe('reorientVideoPatch forceFillCanvas', () => {
+  it('refits a main layer to the full canvas even when it was moved/resized by hand', () => {
+    const asset = makeAsset(1080, 1920);
+    const canvasSize = { width: 1920, height: 1080 };
+    // 中央からずれた位置・少し小さめの手動調整済みのレイヤー
+    const layer = makeLayer({ x: 900, y: 100, width: 300, height: 533, rotation: 0 });
+
+    const withoutForce = reorientVideoPatch(layer, asset, 90, canvasSize);
+    expect(withoutForce.width).toBeLessThan(canvasSize.height - 1);
+
+    const forced = reorientVideoPatch(layer, asset, 90, canvasSize, true);
+    expect(forced.width).toBeCloseTo(canvasSize.height, 0);
+    expect(forced.height).toBeCloseTo(canvasSize.width, 0);
+    expect(forced.x! + forced.width! / 2).toBeCloseTo(canvasSize.width / 2, 0);
+    expect(forced.y! + forced.height! / 2).toBeCloseTo(canvasSize.height / 2, 0);
+  });
+});

@@ -33,6 +33,12 @@ export function reorientVideoPatch(
   asset: MediaAsset | undefined,
   deltaDeg: 90 | -90,
   canvasSize?: { width: number; height: number },
+  /**
+   * trueなら、位置・大きさを手動で変えていても(=シーン全体への中央揃えcontain-fitと
+   * ぴったり一致していなくても)、シーン全体を基準に再フィットする。そのシーンの
+   * 主役の動画(ワイプ等ではない)を回転するときに使う。
+   */
+  forceFillCanvas = false,
 ): Partial<VideoLayer> {
   const newRotation = (((layer.rotation + deltaDeg) % 360) + 360) % 360;
   const cx = layer.x + layer.width / 2;
@@ -61,6 +67,7 @@ export function reorientVideoPatch(
     const effH0 = isSideways(layer.rotation) ? cropW : cropH;
     const s0 = Math.min(canvasSize.width / effW0, canvasSize.height / effH0);
     const fitsFullCanvas =
+      forceFillCanvas ||
       approxEqual(visualW, effW0 * s0) &&
       approxEqual(visualH, effH0 * s0) &&
       approxEqual(cx, canvasSize.width / 2) &&

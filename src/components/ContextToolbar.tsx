@@ -387,6 +387,11 @@ export function ContextToolbar({ project, scene, layers, onOpenCrop }: Props) {
 
   if (layer.type === 'video') {
     const asset = project.mediaLibrary.find((m) => m.id === layer.mediaId);
+    // このシーンの主役の動画(より奥に別の動画/画像が無い)なら、回転後はシーン全体に
+    // 収まる大きさに合わせ直す(ワイプ等の重ねた小さい動画は、自分の枠のまま回転する)。
+    const isMainVisualLayer = !scene.layers.some(
+      (l) => l.id !== layer.id && (l.type === 'video' || l.type === 'image') && l.zIndex < layer.zIndex,
+    );
     const assetDurationSec = asset?.durationMs ? asset.durationMs / 1000 : undefined;
     const maxTrimStartSec = assetDurationSec !== undefined ? Math.max(0, assetDurationSec - sceneDurationMs / 1000) : undefined;
     return (
@@ -431,14 +436,14 @@ export function ContextToolbar({ project, scene, layers, onOpenCrop }: Props) {
             <button
               className="context-toolbar__icon-btn"
               title="動画の向きを反時計回りに90度直す"
-              onClick={() => updateLayer(sceneId, layer.id, reorientVideoPatch(layer, asset, -90, project.resolution))}
+              onClick={() => updateLayer(sceneId, layer.id, reorientVideoPatch(layer, asset, -90, project.resolution, isMainVisualLayer))}
             >
               <RotateLeftIcon />
             </button>
             <button
               className="context-toolbar__icon-btn"
               title="動画の向きを時計回りに90度直す"
-              onClick={() => updateLayer(sceneId, layer.id, reorientVideoPatch(layer, asset, 90, project.resolution))}
+              onClick={() => updateLayer(sceneId, layer.id, reorientVideoPatch(layer, asset, 90, project.resolution, isMainVisualLayer))}
             >
               <RotateRightIcon />
             </button>

@@ -69,12 +69,30 @@ export function EditorView() {
   const currentSceneId = engine.position?.scene.id ?? null;
   const sceneSelection = useSceneSelection(project);
 
+  // シーンのチップを(修飾キー無しで)クリックしたとき、そのシーンの主役の動画レイヤーも
+  // 選択状態にして、トリム・音量・回転などの動画用ツールバーが出るようにする。
+  // シーンが切り替わるとレイヤー選択は(下のeffectで)一旦クリアされるため、切り替わる
+  // 場合は「このシーンに着いたら動画レイヤーを選ぶ」という予約(pendingLayerSceneIdRef)を
+  // 残し、そのeffectの中で選択する。既に同じシーンにいる場合はそのまま選択する。
+  const pendingLayerSceneIdRef = useRef<string | null>(null);
+  function selectMainVideoLayerOf(sceneId: string) {
+    const scene = project?.scenes.find((s) => s.id === sceneId);
+    const mainVideo = scene?.layers.filter((l) => l.type === 'video').sort((a, b) => a.zIndex - b.zIndex)[0];
+    if (mainVideo) selectLayer(mainVideo.id);
+  }
+
   function handleSceneChipClick(sceneId: string, e: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) {
     sceneSelection.handleChipClick(
       sceneId,
       e,
       () => {
-        if (project) engine.seek(getSceneStartMs(project, sceneId));
+        if (!project) return;
+        if (sceneId === currentSceneId) {
+          selectMainVideoLayerOf(sceneId);
+        } else {
+          pendingLayerSceneIdRef.current = sceneId;
+          engine.seek(getSceneStartMs(project, sceneId));
+        }
       },
       currentSceneId,
     );
@@ -82,6 +100,12 @@ export function EditorView() {
 
   useEffect(() => {
     selectLayer(null);
+    const pending = pendingLayerSceneIdRef.current;
+    if (pending && pending === currentSceneId) {
+      pendingLayerSceneIdRef.current = null;
+      selectMainVideoLayerOf(pending);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSceneId, selectLayer]);
 
   useEffect(() => {
